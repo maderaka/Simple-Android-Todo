@@ -1,21 +1,37 @@
 package com.kodepelangi.raka.todo;
 
 import android.app.AlertDialog;
+import android.app.ListActivity;
+import android.content.ContentValues;
 import android.content.DialogInterface;
+import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
 import android.support.v7.app.ActionBarActivity;
 import android.os.Bundle;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.Adapter;
 import android.widget.EditText;
+import android.widget.ListAdapter;
+import android.widget.SimpleCursorAdapter;
+import android.widget.TextView;
+
+import com.kodepelangi.raka.todo.db.TaskContract;
+import com.kodepelangi.raka.todo.db.TaskDBHelper;
 
 
-public class MainActivity extends ActionBarActivity {
+public class MainActivity extends ListActivity {
+
+    protected TaskDBHelper helper;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
+        prepareData();
     }
 
 
@@ -44,7 +60,19 @@ public class MainActivity extends ActionBarActivity {
             builder.setPositiveButton("Add", new DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(DialogInterface dialog, int which) {
-                    Log.d("MainActivity", editText.getText().toString());
+                    String task = editText.getText().toString();
+                    Log.d("MainActivity", task);
+
+                    helper = new TaskDBHelper(MainActivity.this);
+                    SQLiteDatabase db = helper.getWritableDatabase();
+                    ContentValues values = new ContentValues();
+
+                    values.clear();
+                    values.put(TaskContract.Columns.TASK, task);
+                    db.insertWithOnConflict(TaskContract.TABLE, null, values, SQLiteDatabase.CONFLICT_IGNORE);
+
+                    prepareData();
+
                 }
             });
 
@@ -54,5 +82,34 @@ public class MainActivity extends ActionBarActivity {
         }
 
         return super.onOptionsItemSelected(item);
+    }
+
+    public void onDoneButtonClick(View view){
+        View v = (View) view.getParent();
+        TextView taskTextView = (TextView) v.findViewById(R.id.taskTextView);
+        String task = taskTextView.getText().toString();
+
+        String sql = String.format("DELETE FROM %s WHERE %s = '%s'", TaskContract.TABLE, TaskContract.Columns.TASK, task);
+
+        helper = new TaskDBHelper(MainActivity.this);
+        SQLiteDatabase sqLiteDatabase = helper.getWritableDatabase();
+        sqLiteDatabase.execSQL(sql);
+
+        prepareData();
+
+    }
+
+    protected void prepareData() {
+        SQLiteDatabase sqLiteDatabase = new TaskDBHelper(this).getWritableDatabase();
+        Cursor cursor = sqLiteDatabase.query(
+                TaskContract.TABLE,
+                new String[] {TaskContract.Columns._ID, TaskContract.Columns.TASK},
+                null, null, null, null, null);
+
+        cursor.moveToFirst();
+
+        ListAdapter listAdapter = new SimpleCursorAdapter(this, R.layout.task_view, cursor, new String[] {TaskContract.Columns.TASK}, new int[] {R.id.taskTextView},0);
+
+        this.setListAdapter(listAdapter);
     }
 }
